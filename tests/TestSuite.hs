@@ -186,8 +186,11 @@ getTimeMethod = S.toMethod "get_time_seconds" getTestTime ()
           getTestTime = liftIO $ return 100
 
 removeErrMsg :: A.Value -> A.Value
-removeErrMsg (A.Object rsp) = A.Object $ KM.adjust removeMsg (AK.fromText "error") rsp
-    where removeMsg (A.Object err) = A.Object $ KM.insert (AK.fromText "message") "" $ KM.delete (AK.fromText "data") err
+removeErrMsg (A.Object rsp) = A.Object $ case KM.lookup errKey rsp of
+    Nothing -> rsp
+    Just v  -> KM.insert errKey (removeMsg v) rsp
+    where errKey = AK.fromText "error"
+          removeMsg (A.Object err) = A.Object $ KM.insert (AK.fromText "message") "" $ KM.delete (AK.fromText "data") err
           removeMsg v = v
 removeErrMsg (A.Array rsps) = A.Array $ removeErrMsg `V.map` rsps
 removeErrMsg v = v
