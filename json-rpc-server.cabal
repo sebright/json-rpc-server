@@ -1,6 +1,5 @@
 name:                json-rpc-server
-version:             0.2.6.0
-x-revision:          8
+version:             0.2.7.0
 license:             MIT
 license-file:        LICENSE
 category:            Network, JSON
