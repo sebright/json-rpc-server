@@ -1,0 +1,96 @@
+name: CI
+
+on:
+  push:
+    branches: [ master ]
+  pull_request:
+    branches: [ master ]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # Test with different versions of GHC, cabal-install, Stackage, and aeson. The aeson
+        # version must match the version in the Stackage snapshot.
+        include:
+          - {ghc: "7.10.3",  cabal: "3.8.1.0",   stackage: "lts-5.18",    aeson: "0.9.0.1"}
+          - {ghc: "7.10.3",  cabal: "3.8.1.0",   stackage: "lts-6.35",    aeson: "0.11.3.0"}
+          - {ghc: "8.0.2",   cabal: "3.8.1.0",   stackage: "lts-8.24",    aeson: "1.0.2.1"}
+          - {ghc: "8.0.2",   cabal: "3.8.1.0",   stackage: "lts-9.21",    aeson: "1.1.2.0"}
+          - {ghc: "8.2.2",   cabal: "3.8.1.0",   stackage: "lts-11.22",   aeson: "1.2.4.0"}
+          - {ghc: "8.4.4",   cabal: "3.8.1.0",   stackage: "lts-12.26",   aeson: "1.3.1.1"}
+          - {ghc: "8.6.5",   cabal: "3.8.1.0",   stackage: "lts-14.27",   aeson: "1.4.6.0"}
+          - {ghc: "8.8.4",   cabal: "3.8.1.0",   stackage: "lts-16.31",   aeson: "1.4.7.1"}
+          - {ghc: "8.10.7",  cabal: "3.8.1.0",   stackage: "lts-18.28",   aeson: "1.5.6.0"}
+          - {ghc: "9.0.2",   cabal: "3.8.1.0",   stackage: "lts-19.33",   aeson: "2.0.3.0"}
+          - {ghc: "9.2.8",   cabal: "3.10.1.0",  stackage: "lts-20.26",   aeson: "2.0.3.0"}
+          - {ghc: "9.4.8",   cabal: "3.10.1.0",  stackage: "lts-21.25",   aeson: "2.1.2.1"}
+          - {ghc: "9.6.7",   cabal: "3.12.1.0",  stackage: "lts-22.44",   aeson: "2.1.2.1"}
+          - {ghc: "9.8.4",   cabal: "3.14.1.0",  stackage: "lts-23.28",   aeson: "2.2.3.0"}
+          - {ghc: "9.10.3",  cabal: "3.16.0.0",  stackage: "lts-24.33",   aeson: "2.2.3.0"}
+
+    steps:
+      - uses: actions/cache@v3
+        id: cache
+        with:
+          path: ~/.cabal/store
+          key: ghc-${{ matrix.ghc }}-cabal-${{ matrix.cabal }}-stackage-${{ matrix.stackage }}
+
+      - uses: actions/checkout@v3
+
+      - name: Set up GHC and Cabal
+        uses: haskell-actions/setup@v2
+        with:
+          ghc-version: ${{ matrix.ghc }}
+          cabal-version: ${{ matrix.cabal }}
+
+      - name: Print versions
+        run: |
+          ghc --version
+          cabal --version
+
+      - name: Update package list
+        run: cabal update
+
+      - name: Import Stackage snapshot
+        run: |
+          echo "import: https://www.stackage.org/${{ matrix.stackage }}/cabal.config" >> cabal.project.local
+
+      - name: Constrain aeson version
+        run: |
+          echo "constraints: aeson==${{ matrix.aeson }}" >> cabal.project.local
+
+      - name: Install dependencies
+        run: cabal v2-build --only-dependencies --enable-tests
+
+      - name: Cabal check
+        run: cabal check
+
+      - name: Build library and tests
+        run: cabal v2-build all --enable-tests
+
+      - name: Run tests
+        run: cabal v2-test all --enable-tests --test-show-details=direct
+
+      - name: Generate source distribution
+        run: cabal v2-sdist
+
+      - name: Verify that sdist installs
+        run: |
+          SDIST=$(grep '^version:' json-rpc-server.cabal | awk '{print "json-rpc-server-" $2 ".tar.gz"}')
+          cp cabal.project.local dist-newstyle/sdist/
+          cd dist-newstyle/sdist/
+          if [ -f "$SDIST" ]; then
+            tar xzf "$SDIST"
+            PKGDIR=$(basename "$SDIST" .tar.gz)
+            cd "$PKGDIR"
+            cabal v2-build all
+          else
+            echo "expected '$SDIST' not found"
+            exit 1
+          fi
+
+      - name: Build demo
+        run: cabal v2-install -f demo
