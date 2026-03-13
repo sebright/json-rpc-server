@@ -37,7 +37,8 @@ import Data.Maybe (catMaybes)
 import qualified Data.ByteString.Lazy as B
 import qualified Data.Aeson as A
 import qualified Data.Vector as V
-import qualified Data.HashMap.Strict as H
+import qualified Data.Aeson.Key as AK
+import qualified Data.Aeson.KeyMap as KM
 import Control.DeepSeq (NFData)
 import Control.Monad (liftM, (<=<))
 import Control.Monad.Identity (runIdentity)
@@ -86,7 +87,7 @@ toMethods :: [Method m] -> Methods m
 toMethods = id
 {-# DEPRECATED toMethods "Use 'call' directly." #-}
 
-type MethodMap m = H.HashMap Text (Method m)
+type MethodMap m = KM.KeyMap (Method m)
 
 -- | Handles one JSON-RPC request. It is the same as
 --   @callWithBatchStrategy sequence@.
@@ -109,8 +110,8 @@ callWithBatchStrategy :: Monad m =>
 callWithBatchStrategy strategy methods =
     mthMap `seq` either returnErr callMethod . parse
   where
-    mthMap = H.fromList $
-             map (\mth@(Method name _) -> (name, mth)) methods
+    mthMap = KM.fromList $
+             map (\mth@(Method name _) -> (AK.fromText name, mth)) methods
     parse :: B.ByteString -> Either RpcError (Either A.Value [A.Value])
     parse = runIdentity . runExceptT . parseVal <=< parseJson
     parseJson = maybe invalidJson return . A.decode
@@ -147,7 +148,7 @@ parseValue val = case A.fromJSON val of
                    A.Success x -> return x
 
 lookupMethod :: Monad m => Text -> MethodMap m -> RpcResult m (Method m)
-lookupMethod name = maybe notFound return . H.lookup name
+lookupMethod name = maybe notFound return . KM.lookup (AK.fromText name)
     where notFound = throwError $ rpcError (-32601) $ "Method not found: " `append` name
 
 throwInvalidRpc :: Monad m => Text -> RpcResult m a

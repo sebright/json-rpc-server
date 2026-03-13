@@ -23,9 +23,11 @@ import Data.Maybe (catMaybes)
 import Data.Text (Text, append, unpack)
 import qualified Data.Aeson as A
 import Data.Aeson ((.=), (.:), (.:?), (.!=))
-import Data.Aeson.Types (emptyObject)
+import Data.Aeson.Types (iparse, IResult (..), formatError)
+
 import qualified Data.Vector as V
-import qualified Data.HashMap.Strict as H
+import qualified Data.Aeson.Key as AK
+import qualified Data.Aeson.KeyMap as KM
 import Control.DeepSeq (NFData, rnf)
 import Control.Monad (when)
 import Control.Monad.Except (ExceptT (..), throwError)
@@ -68,14 +70,14 @@ instance (A.FromJSON a, MethodParams f p m r) => MethodParams (a -> f) (a :+: p)
         ExceptT (return arg) >>= \a -> _apply (f a) ps nextArgs
       where
         arg = maybe (paramDefault param) (parseArg name) lookupValue
-        lookupValue = either (H.lookup name) (V.!? 0) args
+        lookupValue = either (KM.lookup (AK.fromText name)) (V.!? 0) args
         nextArgs = V.drop 1 <$> args
         name = paramName param
 
 parseArg :: A.FromJSON r => Text -> A.Value -> Either RpcError r
-parseArg name val = case A.fromJSON val of
-                      A.Error msg -> throwError $ argTypeError msg
-                      A.Success x -> return x
+parseArg name val = case iparse A.parseJSON val of
+                      IError path msg -> throwError $ argTypeError (formatError path msg)
+                      ISuccess x -> return x
     where argTypeError = rpcErrorWithData (-32602) $ "Wrong type for argument: " `append` name
 
 paramDefault :: Parameter a -> Either RpcError a
@@ -92,15 +94,15 @@ paramName (Required n) = n
 -- | A JSON-RPC method.
 data Method m = Method Text (Args -> RpcResult m A.Value)
 
-type Args = Either A.Object A.Array
+type Args = Either (KM.KeyMap A.Value) A.Array
 
 data Request = Request Text Args (Maybe Id)
 
 instance A.FromJSON Request where
-    parseJSON (A.Object x) = (checkVersion =<< x .:? versionKey .!= jsonRpcVersion) *>
+    parseJSON (A.Object x) = (checkVersion =<< x .:? AK.fromText versionKey .!= jsonRpcVersion) *>
                              (Request <$>
-                              x .: "method" <*>
-                              (parseParams =<< x .:? "params" .!= emptyObject) <*>
+                              x .: AK.fromText "method" <*>
+                              (parseParams =<< x .:? AK.fromText "params" .!= A.Object KM.empty) <*>
                               parseId)
         where parseParams (A.Object obj) = return $ Left obj
               parseParams (A.Array ar) = return $ Right ar
@@ -109,9 +111,9 @@ instance A.FromJSON Request where
                             fail $ "Wrong JSON-RPC version: " ++ unpack ver
                -- (.:?) parses Null value as Nothing so parseId needs
                -- to use both (.:?) and (.:) to handle all cases
-              parseId = x .:? idKey >>= \optional ->
+              parseId = x .:? AK.fromText idKey >>= \optional ->
                         case optional of
-                          Nothing -> Just <$> (x .: idKey) <|> return Nothing
+                          Nothing -> Just <$> (x .: AK.fromText idKey) <|> return Nothing
                           _ -> return optional
     parseJSON _ = empty
 
@@ -122,9 +124,9 @@ instance NFData Response where
 
 instance A.ToJSON Response where
     toJSON (Response i result) = A.object pairs
-        where pairs = [ versionKey .= jsonRpcVersion
+        where pairs = [ AK.fromText versionKey .= jsonRpcVersion
                       , either ("error" .=) ("result" .=) result
-                      , idKey .= i]
+                      , AK.fromText idKey .= i]
 
 -- IdNumber cannot directly reference the type stored in A.Number,
 -- since it changes between aeson-0.6 and 0.7.

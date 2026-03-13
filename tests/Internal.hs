@@ -18,7 +18,8 @@ module Internal ( request
 
 import qualified Data.Aeson as A
 import Data.Aeson ((.=))
-import qualified Data.HashMap.Strict as H
+import qualified Data.Aeson.Key as AK
+import qualified Data.Aeson.KeyMap as KM
 import Data.Maybe (catMaybes)
 import qualified Data.Vector as V
 import Data.Text (Text)
@@ -31,7 +32,7 @@ array :: [A.Value] -> A.Value
 array = A.Array . V.fromList
 
 rspToIdString :: A.Value -> Maybe String
-rspToIdString (A.Object rsp) = show <$> H.lookup "id" rsp
+rspToIdString (A.Object rsp) = show <$> KM.lookup (AK.fromText "id") rsp
 rspToIdString _ = Nothing
 
 request :: Maybe A.Value -> Text -> Maybe A.Value -> A.Value
@@ -45,7 +46,7 @@ defaultRq = request (Just defaultId) "subtract" args
     where args = Just $ A.object ["x" .= A.Number 1, "y" .= A.Number 2]
 
 response :: A.Value -> Text -> A.Value -> A.Value
-response i key res = A.object ["id" .= i, key .= res, "jsonrpc" .= A.String "2.0"]
+response i key res = A.object ["id" .= i, AK.fromText key .= res, "jsonrpc" .= A.String "2.0"]
 
 defaultRsp :: A.Value
 defaultRsp = response defaultId "result" defaultResult
@@ -79,8 +80,8 @@ result :: A.Value -> A.Value -> A.Value
 result rsp = insert rsp "result" . Just
 
 insert :: A.Value -> Text -> Maybe A.Value -> A.Value
-insert (A.Object obj) key Nothing = A.Object $ H.delete key obj
-insert (A.Object obj) key (Just val) = A.Object $ H.insert key val obj
+insert (A.Object obj) key Nothing = A.Object $ KM.delete (AK.fromText key) obj
+insert (A.Object obj) key (Just val) = A.Object $ KM.insert (AK.fromText key) val obj
 insert v _ _ = v
 
 defaultId :: A.Value

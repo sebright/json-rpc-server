@@ -16,7 +16,8 @@ import Data.Function (on)
 import qualified Data.Aeson as A
 import Data.Aeson ((.=))
 import qualified Data.Aeson.Types as A
-import qualified Data.HashMap.Strict as H
+import qualified Data.Aeson.Key as AK
+import qualified Data.Aeson.KeyMap as KM
 import qualified Data.ByteString.Lazy.Char8 as LB
 import Control.Monad.Trans (liftIO)
 import Control.Monad.State (State, runState, lift, modify)
@@ -93,7 +94,7 @@ otherTests = [ testCase "encode RPC error" $
 
              , testCase "empty argument array" $ assertGetTimeResponse $ Just A.emptyArray
 
-             , testCase "empty argument A.object" $ assertGetTimeResponse $ Just A.emptyObject
+             , testCase "empty argument A.object" $ assertGetTimeResponse $ Just (A.Object KM.empty)
 
              , let req = defaultRq `params` Just args
                    args = A.object ["x" .= A.Number 10, "y" .= A.Number 20, "z" .= A.String "extra"]
@@ -185,8 +186,11 @@ getTimeMethod = S.toMethod "get_time_seconds" getTestTime ()
           getTestTime = liftIO $ return 100
 
 removeErrMsg :: A.Value -> A.Value
-removeErrMsg (A.Object rsp) = A.Object $ H.adjust removeMsg "error" rsp
-    where removeMsg (A.Object err) = A.Object $ H.insert "message" "" $ H.delete "data" err
+removeErrMsg (A.Object rsp) = A.Object $ case KM.lookup errKey rsp of
+    Nothing -> rsp
+    Just v  -> KM.insert errKey (removeMsg v) rsp
+    where errKey = AK.fromText "error"
+          removeMsg (A.Object err) = A.Object $ KM.insert (AK.fromText "message") "" $ KM.delete (AK.fromText "data") err
           removeMsg v = v
 removeErrMsg (A.Array rsps) = A.Array $ removeErrMsg `V.map` rsps
 removeErrMsg v = v
