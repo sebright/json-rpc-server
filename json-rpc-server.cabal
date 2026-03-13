@@ -7,7 +7,7 @@ maintainer:          Kristen Kozak <grayjay@wordroute.com>
 synopsis:            JSON-RPC 2.0 on the server side.
 build-type:          Simple
 extra-source-files:  changelog.md
-cabal-version:       >=1.8
+cabal-version:       >=1.10
 tested-with:         GHC == 7.0.1, GHC == 7.6.3, GHC == 7.8.4, GHC == 7.10.1,
                      GHC == 7.10.2, GHC == 7.10.3, GHC == 8.0.1, GHC == 8.0.2,
                      GHC == 8.2.2, GHC == 8.4.1, GHC == 8.4.4, GHC == 8.6.1,
@@ -26,7 +26,7 @@ description:         An implementation of the server side of JSON-RPC 2.0.
 
 source-repository head
   type:              git
-  location:          git://github.com/grayjay/json-rpc-server.git
+  location:          https://github.com/grayjay/json-rpc-server.git
 
 flag demo
   description:       Builds the JSON-RPC demo.
@@ -41,11 +41,12 @@ library
                        deepseq >= 1.1 && <1.5,
                        bytestring >=0.9 && <0.11,
                        mtl >=2.2.1 && <2.3,
-                       text >=0.11 && <3.0,
+                       text >=0.11 && <2.2,
                        vector >=0.7.1 && <0.13,
                        unordered-containers >=0.1 && <0.3
   hs-source-dirs:      src
   ghc-options:         -Wall
+  default-language:    Haskell2010
   other-extensions:    CPP,
                        FlexibleInstances,
                        FunctionalDependencies,
@@ -58,6 +59,7 @@ library
 executable demo
   main-is:             Demo.hs
   hs-source-dirs:      demo
+  default-language:    Haskell2010
   if flag (demo)
     build-depends:     base,
                        json-rpc-server,
@@ -84,4 +86,5 @@ test-suite tests
                        vector,
                        unordered-containers
   ghc-options:         -Wall
+  default-language:    Haskell2010
   other-extensions:    CPP, OverloadedStrings
