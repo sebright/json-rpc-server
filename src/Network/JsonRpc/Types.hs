@@ -20,7 +20,7 @@ module Network.JsonRpc.Types ( RpcResult
                              , rpcErrorWithData) where
 
 import Data.Maybe (catMaybes)
-import Data.Text (Text)
+import Data.Text (Text, append)
 #if ! MIN_VERSION_aeson(2,0,0)
 import Data.Text (unpack)
 #endif
@@ -86,14 +86,14 @@ parseArg :: A.FromJSON r => Text -> A.Value -> Either RpcError r
 parseArg name val = case A.fromJSON val of
                       A.Error msg -> throwError $ argTypeError msg
                       A.Success x -> return x
-    where argTypeError = rpcErrorWithData (-32602) $ "Wrong type for argument: " <> name
+    where argTypeError = rpcErrorWithData (-32602) $ "Wrong type for argument: " `append` name
 
 paramDefault :: Parameter a -> Either RpcError a
 paramDefault (Optional _ d) = Right d
 paramDefault (Required name) = Left $ missingArgError name
 
 missingArgError :: Text -> RpcError
-missingArgError name = rpcError (-32602) $ "Cannot find required argument: " <> name
+missingArgError name = rpcError (-32602) $ "Cannot find required argument: " `append` name
 
 paramName :: Parameter a -> Text
 paramName (Optional n _) = n

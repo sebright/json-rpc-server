@@ -24,7 +24,7 @@ import qualified Data.HashMap.Strict as H
 import qualified Data.ByteString.Lazy.Char8 as LB
 import Control.Monad.Trans (liftIO)
 import Control.Monad.State (State, runState, lift, modify)
-import Control.Monad.Identity (Identity(..), runIdentity)
+import Control.Monad.Identity (Identity, runIdentity)
 import Test.HUnit hiding (State, Test)
 import Test.Framework (defaultMain, Test)
 import Test.Framework.Providers.HUnit (testCase)
@@ -189,8 +189,12 @@ getTimeMethod = S.toMethod "get_time_seconds" getTestTime ()
           getTestTime = liftIO $ return 100
 
 removeErrMsg :: A.Value -> A.Value
-removeErrMsg (A.Object rsp) = A.Object $ runIdentity $ H.alterF (Identity . fmap removeMsg) "error" rsp
-    where removeMsg (A.Object err) = A.Object $ H.insert "message" "" $ H.delete "data" err
+removeErrMsg (A.Object rsp) = A.Object $
+        case H.lookup errorKey rsp of
+          Nothing -> rsp
+          Just v -> H.insert errorKey (removeMsg v) rsp
+    where errorKey = "error"
+          removeMsg (A.Object err) = A.Object $ H.insert "message" "" $ H.delete "data" err
           removeMsg v = v
 removeErrMsg (A.Array rsps) = A.Array $ removeErrMsg `V.map` rsps
 removeErrMsg v = v
