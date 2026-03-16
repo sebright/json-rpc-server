@@ -85,6 +85,7 @@ jobs:
           if [ -f "$SDIST" ]; then
             tar xzf "$SDIST"
             PKGDIR=$(basename "$SDIST" .tar.gz)
+            mv cabal.project.local "$PKGDIR"
             cd "$PKGDIR"
             cabal v2-build all
           else
