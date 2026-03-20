@@ -61,7 +61,13 @@ jobs:
 
       - name: Import Stackage snapshot
         run: |
-          echo "import: https://www.stackage.org/${{ matrix.stackage }}/cabal.config" >> cabal.project.local
+          LOCAL_CONFIG="stackage-local.config"
+          curl -sSL https://www.stackage.org/${{ matrix.stackage }}/cabal.config > $LOCAL_CONFIG
+
+          # Remove any existing constraint on this package from the Stackage snapshot.
+          sed -i "/^[[:space:]]*json-rpc-server[[:space:]]*==/d" $LOCAL_CONFIG
+
+          echo "import: $LOCAL_CONFIG" >> cabal.project.local
 
       - name: Assert aeson version
         run: |
@@ -85,12 +91,12 @@ jobs:
       - name: Verify that sdist installs
         run: |
           SDIST=$(grep '^version:' json-rpc-server.cabal | awk '{print "json-rpc-server-" $2 ".tar.gz"}')
-          cp cabal.project.local dist-newstyle/sdist/
+          cp cabal.project.local stackage-local.config dist-newstyle/sdist/
           cd dist-newstyle/sdist/
           if [ -f "$SDIST" ]; then
             tar xzf "$SDIST"
             PKGDIR=$(basename "$SDIST" .tar.gz)
-            mv cabal.project.local "$PKGDIR"
+            mv cabal.project.local stackage-local.config "$PKGDIR"
             cd "$PKGDIR"
             assert-version.sh aeson "${{ matrix.aeson }}"
             cabal v2-build all
