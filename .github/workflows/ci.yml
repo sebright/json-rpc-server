@@ -40,6 +40,11 @@ jobs:
 
       - uses: actions/checkout@v3
 
+      - name: Add scripts to GITHUB_PATH
+        run: |
+          chmod +x .github/scripts/*
+          echo "${{ github.workspace }}/.github/scripts" >> $GITHUB_PATH
+
       - name: Set up GHC and Cabal
         uses: haskell-actions/setup@v2
         with:
@@ -58,9 +63,9 @@ jobs:
         run: |
           echo "import: https://www.stackage.org/${{ matrix.stackage }}/cabal.config" >> cabal.project.local
 
-      - name: Constrain aeson version
+      - name: Assert aeson version
         run: |
-          echo "constraints: aeson==${{ matrix.aeson }}" >> cabal.project.local
+          assert-version.sh aeson "${{ matrix.aeson }}"
 
       - name: Install dependencies
         run: cabal v2-build --only-dependencies --enable-tests
@@ -87,6 +92,7 @@ jobs:
             PKGDIR=$(basename "$SDIST" .tar.gz)
             mv cabal.project.local "$PKGDIR"
             cd "$PKGDIR"
+            assert-version.sh aeson "${{ matrix.aeson }}"
             cabal v2-build all
           else
             echo "expected '$SDIST' not found"
