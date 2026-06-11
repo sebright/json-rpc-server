@@ -30,6 +30,12 @@ import qualified Data.Aeson.Key as A
 #endif
 import Data.Aeson ((.=), (.:), (.:?), (.!=))
 import Data.Aeson.Types (emptyObject)
+#if MIN_VERSION_aeson(2,1,2)
+-- iparse/IResult retain the JSONPath accumulated by (.:) and withObject,
+-- which A.fromJSON discards. formatError was first re-exported from
+-- Data.Aeson.Types in aeson 2.1.2.0.
+import Data.Aeson.Types (iparse, IResult (..), formatError)
+#endif
 import qualified Data.Vector as V
 #if MIN_VERSION_aeson(2,0,0)
 import qualified Data.Aeson.KeyMap as KeyMap
@@ -83,10 +89,20 @@ instance (A.FromJSON a, MethodParams f p m r) => MethodParams (a -> f) (a :+: p)
         name = paramName param
 
 parseArg :: A.FromJSON r => Text -> A.Value -> Either RpcError r
+#if MIN_VERSION_aeson(2,1,2)
+-- Use iparse so the JSONPath of a nested failure is preserved, turning bare
+-- "expected Number, got String" messages into
+-- "Error in $.products[0].price: expected Number, got String".
+parseArg name val = case iparse A.parseJSON val of
+                      IError path msg -> throwError $ argTypeError (formatError path msg)
+                      ISuccess x -> return x
+    where argTypeError = rpcErrorWithData (-32602) $ "Wrong type for argument: " `append` name
+#else
 parseArg name val = case A.fromJSON val of
                       A.Error msg -> throwError $ argTypeError msg
                       A.Success x -> return x
     where argTypeError = rpcErrorWithData (-32602) $ "Wrong type for argument: " `append` name
+#endif
 
 paramDefault :: Parameter a -> Either RpcError a
 paramDefault (Optional _ d) = Right d
